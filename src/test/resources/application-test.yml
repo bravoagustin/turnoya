@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:turnoya-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;LOCK_TIMEOUT=10000;DB_CLOSE_DELAY=-1
+
+turnoya:
+  demo-data: false
+  scheduling:
+    enabled: false
+  mercadopago:
+    webhook-secret: test-secret

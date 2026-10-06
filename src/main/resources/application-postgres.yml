@@ -1,0 +1,5 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/turnoya}
+    username: ${DB_USER:turnoya}
+    password: ${DB_PASSWORD:turnoya}

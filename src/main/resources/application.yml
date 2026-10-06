@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: turnoya
+  datasource:
+    # Por defecto corre con H2 en memoria (modo PostgreSQL) para levantar sin instalar nada.
+    url: jdbc:h2:mem:turnoya;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;LOCK_TIMEOUT=10000;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+turnoya:
+  public-base-url: ${PUBLIC_BASE_URL:http://localhost:8080}
+  demo-data: true
+  booking:
+    hold-ttl: 10m
+    max-days-ahead: 60
+  mercadopago:
+    access-token: ${MP_ACCESS_TOKEN:}
+    webhook-secret: ${MP_WEBHOOK_SECRET:dev-secret}
+    notification-url: ${turnoya.public-base-url}/webhooks/mercadopago

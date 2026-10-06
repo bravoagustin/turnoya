@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TurnoYa</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">T</span>
+      <div>
+        <strong>TurnoYa</strong>
+        <small id="business-name">Cargando…</small>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-view="book" role="tab">Reservar turno</button>
+      <button class="tab" data-view="agenda" role="tab">Agenda del negocio</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Vista cliente -->
+    <section id="view-book" class="view">
+      <div class="steps">
+        <article class="card" id="step-service">
+          <h2><span class="num">1</span> Elegí el servicio</h2>
+          <div id="services" class="service-list"></div>
+        </article>
+
+        <article class="card" id="step-slot">
+          <h2><span class="num">2</span> Elegí día y horario</h2>
+          <label class="field">
+            <span>Día</span>
+            <input type="date" id="date">
+          </label>
+          <div id="slots" class="slots"><p class="muted">Primero elegí un servicio.</p></div>
+        </article>
+
+        <article class="card" id="step-form">
+          <h2><span class="num">3</span> Tus datos</h2>
+          <div id="summary" class="summary muted">Elegí un horario para continuar.</div>
+          <form id="booking-form" novalidate>
+            <label class="field">
+              <span>Nombre</span>
+              <input name="customerName" autocomplete="name" required maxlength="120" placeholder="Ana Pérez">
+              <em class="error" data-for="customerName"></em>
+            </label>
+            <label class="field">
+              <span>Teléfono (WhatsApp)</span>
+              <input name="customerPhone" inputmode="tel" autocomplete="tel" required placeholder="3518000001">
+              <em class="error" data-for="customerPhone"></em>
+            </label>
+            <button type="submit" class="btn primary" id="submit" disabled>Reservar y pagar seña</button>
+          </form>
+        </article>
+      </div>
+    </section>
+
+    <!-- Vista negocio -->
+    <section id="view-agenda" class="view" hidden>
+      <article class="card">
+        <div class="agenda-head">
+          <h2>Turnos del día</h2>
+          <div class="agenda-controls">
+            <input type="date" id="agenda-date">
+            <button class="btn" id="agenda-refresh">Actualizar</button>
+          </div>
+        </div>
+        <div id="agenda-stats" class="stats"></div>
+        <div class="table-wrap">
+          <table class="agenda">
+            <thead>
+              <tr><th>Hora</th><th>Servicio</th><th>Cliente</th><th>Teléfono</th><th>Seña</th><th>Estado</th></tr>
+            </thead>
+            <tbody id="agenda-body"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <!-- Modal de pago -->
+  <dialog id="payment-dialog">
+    <div id="payment-content"></div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
