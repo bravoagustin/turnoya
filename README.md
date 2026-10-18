@@ -5,7 +5,7 @@ Reserva de turnos **con seña obligatoria vía Mercado Pago** para peluquerías,
 **El problema:** el cliente reserva, no va y el negocio pierde ese horario. **La solución:** el turno solo se
 confirma cuando el cliente paga una seña. Mientras paga, el horario queda retenido 10 minutos; si no paga, se libera solo.
 
-> Etapa 1 de 4: núcleo de reservas y pagos. Próximas: Kafka, asistente de WhatsApp con IA y planes pagos.
+> Etapa 2 de 4: núcleo de reservas y pagos + eventos en Kafka. Próximas: asistente de WhatsApp con IA y planes pagos.
 
 ## Decisiones técnicas destacadas
 
@@ -17,7 +17,7 @@ confirma cuando el cliente paga una seña. Mientras paga, el horario queda reten
 | Webhooks falsificados | Verificación HMAC-SHA256 del header `x-signature` con comparación en tiempo constante. No se confía en el body: se consulta el pago a la API. | `MercadoPagoSignatureVerifier` |
 | El cliente paga después de que venció la seña | Si el horario sigue libre se confirma igual; si otro lo tomó, la reserva pasa a `REFUND_REQUIRED` | `BookingService#applyApprovedPayment` |
 | El job de vencimiento y el webhook modifican la misma reserva | `@Version` (lock optimista): gana el pago | `HoldExpirationJob` |
-| Publicar eventos sin perderlos ni inventarlos | Transactional outbox: el evento se guarda en la misma transacción y un relay lo publica | `outbox/` |
+| Publicar eventos sin perderlos ni inventarlos | Transactional outbox: el evento se guarda en la misma transacción y un relay lo publica en Kafka (topic por agregado, key = id de la reserva para conservar el orden, header `eventId` para deduplicar) | `outbox/` |
 | Testear lógica que depende del tiempo | `Clock` inyectable: los tests "adelantan el reloj" | `MutableClock` |
 
 ## Ciclo de vida de una reserva
@@ -35,7 +35,7 @@ stateDiagram-v2
 ## Stack
 
 Java 21 · Spring Boot 4 · Spring Data JPA / Hibernate · PostgreSQL · Flyway · Mercado Pago (Checkout Pro + webhooks) ·
-JUnit 5 · MockMvc · Docker · GitHub Actions · OpenAPI/Swagger
+Kafka · JUnit 5 · MockMvc · Docker · GitHub Actions · OpenAPI/Swagger
 
 ## Correr el proyecto
 
@@ -52,11 +52,13 @@ mvn spring-boot:run
 El frontend es HTML + JavaScript sin frameworks, servido por el mismo Spring Boot (`src/main/resources/static`):
 un solo deploy, sin CORS ni build de Node. Los datos del usuario se insertan con `textContent`, nunca como HTML.
 
-Con PostgreSQL:
+Con PostgreSQL y Kafka (los eventos van al topic `turnoya.booking`):
 
 ```bash
 docker compose up --build
 ```
+
+Sin el perfil `kafka`, los eventos del outbox se escriben en el log.
 
 Con Mercado Pago real (credenciales de prueba):
 
@@ -84,12 +86,13 @@ curl localhost:8080/api/bookings/{bookingId}
 ## Tests
 
 ```bash
-mvn verify   # 12 unitarios (surefire) + 10 de integración (failsafe)
+mvn verify   # 15 unitarios (surefire) + 11 de integración (failsafe), Kafka embebido sin Docker
 ```
 
 ## Roadmap
 
 - [x] **MVP:** agenda, reservas con seña (pago simulado), vencimiento de señas, webhooks idempotentes, outbox
 - [ ] **En pausa:** Mercado Pago real (la integración ya está escrita, se activa con el perfil `mercadopago`)
-- [ ] **En pausa:** relay del outbox a Kafka y asistente de WhatsApp con la API de Claude
+- [x] **Relay del outbox a Kafka** (perfil `kafka`)
+- [ ] **En pausa:** asistente de WhatsApp con la API de Claude
 - [ ] **Después:** multi-tenant con API keys, panel del negocio, planes pagos, deploy

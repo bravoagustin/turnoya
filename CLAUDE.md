@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Reserva de turnos con seña obligatoria vía Mercado Pago. El turno solo se confirma cuando el cliente paga la seña;
 mientras paga, el horario queda retenido (`turnoya.booking.hold-ttl`, 10 min) y si no paga se libera solo.
 
-Stack: Java 21, Spring Boot 4, Spring Data JPA, PostgreSQL (H2 en modo PostgreSQL por defecto), Flyway, JUnit 5 + Mockito + MockMvc.
-Kafka está planeado pero todavía no es dependencia: los eventos salen por `LoggingEventPublisher`.
+Stack: Java 21, Spring Boot 4, Spring Data JPA, PostgreSQL (H2 en modo PostgreSQL por defecto), Flyway, Kafka (perfil `kafka`),
+JUnit 5 + Mockito + MockMvc.
 
 ## Modo aprendizaje
 Soy el desarrollador. Explicame el porqué de cada decisión,
@@ -26,7 +26,7 @@ No hay Maven wrapper: se usa `mvn` instalado.
 
 ```bash
 mvn spring-boot:run                       # H2 en memoria + pagos simulados + negocio demo
-docker compose up --build                 # app + PostgreSQL 17 (perfil postgres)
+docker compose up --build                 # app + PostgreSQL 17 + Kafka (perfiles postgres,kafka)
 mvn test                                  # solo unitarios (*Test, surefire)
 mvn verify                                # unitarios + integración (*IT, failsafe) — lo que corre la CI
 mvn test -Dtest=ScheduleRulesTest         # un test unitario (o -Dtest=Clase#metodo)
@@ -35,12 +35,13 @@ mvn verify -Dit.test=BookingFlowIT        # un test de integración (corre tambi
 
 - App web: http://localhost:8080 · Swagger: http://localhost:8080/swagger-ui/index.html
 - Simular un pago en desarrollo: `POST /dev/payments/{bookingId}/approve`.
+- Kafka sin compose: `mvn spring-boot:run -Dspring-boot.run.profiles=kafka` con un broker en `KAFKA_BOOTSTRAP_SERVERS` (default `localhost:9092`).
 - Mercado Pago real: perfil `mercadopago` con `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET` y `PUBLIC_BASE_URL`.
 
 ## Arquitectura
 
 **Perfiles y beans intercambiables.** Sin perfil se usan `FakePaymentGateway` + `DevPaymentController`
-(`@Profile("!mercadopago")`); con `mercadopago` se activa `MercadoPagoGateway`. `postgres` solo cambia el datasource.
+(`@Profile("!mercadopago")`); con `mercadopago` se activa `MercadoPagoGateway`. `postgres` solo cambia el datasource. `kafka` reemplaza `LoggingEventPublisher` por `KafkaEventPublisher`.
 `turnoya.demo-data` controla `DemoDataLoader`, y `turnoya.scheduling.enabled` habilita los jobs `@Scheduled`.
 
 **Reserva en dos pasos (`BookingService#reserve`).** Primero una transacción corta toma un lock pesimista sobre el
@@ -63,7 +64,9 @@ comparación en tiempo constante) → `PaymentNotificationService`, que registra
 **Transactional outbox.** Todo cambio de estado relevante llama a `OutboxWriter#append`, que es
 `Propagation.MANDATORY`: falla si no hay transacción activa, y así el evento se guarda atómicamente con el cambio.
 `OutboxRelay` publica los pendientes cada 2 s con entrega al menos una vez, por lo que los consumidores deben ser
-idempotentes. La futura integración con Kafka es otra implementación de `EventPublisher`.
+idempotentes. Con el perfil `kafka`, cada evento va al topic `turnoya.<aggregateType>` con key = `aggregateId` (orden por
+reserva) y headers `eventId` (para deduplicar) y `eventType`. `publish()` espera el ack del broker con timeout: si falla,
+`relayPending()` hace rollback y el evento se reintenta. Cada tipo de agregado nuevo necesita su `NewTopic` en `KafkaTopicsConfig`.
 
 **Tiempo inyectable.** Nunca usar `Instant.now()`: todo toma un `Clock` (bean en `AppConfig`). Los horarios se guardan
 como `Instant` UTC y se convierten con la zona horaria del negocio (`Business#getZoneId`) para la agenda y las reglas
@@ -81,4 +84,6 @@ usuario se insertan con `textContent`, nunca como HTML.
   `MutableClock` fijado en `NOW` (lunes 5/10/2026 09:00 Córdoba) y el helper `newBusinessWithHaircut()`.
 - Para probar vencimientos, adelantá `clock` y llamá a los jobs a mano (`expireDueHolds()`, `relayPending()`),
   porque el scheduling está apagado en tests.
+- `KafkaOutboxRelayIT` usa `@EmbeddedKafka` (broker en memoria, sin Docker). La base H2 de tests es compartida entre
+  contextos, así que no asumas que el outbox arranca vacío.
 - `BookingConcurrencyIT` lanza reservas simultáneas al mismo horario; si tocás el locking, tiene que seguir pasando.
