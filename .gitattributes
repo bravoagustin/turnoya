@@ -1,0 +1,11 @@
+# Finales de línea LF en el repo y en disco, sin depender de core.autocrlf de cada máquina.
+# La CI y el Dockerfile corren en Linux: un script con CRLF falla ahí.
+* text=auto eol=lf
+
+# Scripts de Windows (por ejemplo un futuro mvnw.cmd) necesitan CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+*.jar binary
+*.png binary
+*.ico binary
