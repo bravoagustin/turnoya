@@ -67,6 +67,10 @@ comparación en tiempo constante) → `PaymentNotificationService`, que registra
 idempotentes. Con el perfil `kafka`, cada evento va al topic `turnoya.<aggregateType>` con key = `aggregateId` (orden por
 reserva) y headers `eventId` (para deduplicar) y `eventType`. `publish()` espera el ack del broker con timeout: si falla,
 `relayPending()` hace rollback y el evento se reintenta. Cada tipo de agregado nuevo necesita su `NewTopic` en `KafkaTopicsConfig`.
+Con varias instancias publica una sola: `relayPending()` primero toma la fila de `outbox_relay_lock` con
+`FOR UPDATE SKIP LOCKED` y, si otra instancia la tiene, se saltea el ciclo. No repartas eventos entre relays en paralelo
+(SKIP LOCKED por evento), porque rompe el orden por reserva. `OutboxCleanupJob` borra a diario los eventos publicados
+hace más de `turnoya.outbox.retention` (7 días); los pendientes nunca se borran.
 
 **Tiempo inyectable.** Nunca usar `Instant.now()`: todo toma un `Clock` (bean en `AppConfig`). Los horarios se guardan
 como `Instant` UTC y se convierten con la zona horaria del negocio (`Business#getZoneId`) para la agenda y las reglas
@@ -86,4 +90,6 @@ usuario se insertan con `textContent`, nunca como HTML.
   porque el scheduling está apagado en tests.
 - `KafkaOutboxRelayIT` usa `@EmbeddedKafka` (broker en memoria, sin Docker). La base H2 de tests es compartida entre
   contextos, así que no asumas que el outbox arranca vacío.
+- `OutboxRelayLockIT` simula dos instancias con un `CountDownLatch`: si el relay esperara el candado en vez de saltearlo,
+  falla por timeout.
 - `BookingConcurrencyIT` lanza reservas simultáneas al mismo horario; si tocás el locking, tiene que seguir pasando.

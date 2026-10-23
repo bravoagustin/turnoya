@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Publica los eventos pendientes del outbox. Entrega "al menos una vez":
  * si se cae después de publicar y antes de marcar, el evento se reenvía, así que los consumidores deben ser idempotentes.
+ * Con varias instancias, solo publica la que toma el candado del relay: así se conserva el orden de los eventos.
  */
 @Component
 public class OutboxRelay {
@@ -30,6 +31,10 @@ public class OutboxRelay {
     @Scheduled(fixedDelayString = "${turnoya.outbox.relay-interval:PT2S}")
     @Transactional
     public int relayPending() {
+        if (outbox.tryAcquireRelayLock().isEmpty()) {
+            // Otra instancia está publicando; lo intentamos en el próximo ciclo.
+            return 0;
+        }
         List<OutboxEvent> pending = outbox.findUnpublished(PageRequest.of(0, BATCH_SIZE));
         for (OutboxEvent event : pending) {
             publisher.publish(event);

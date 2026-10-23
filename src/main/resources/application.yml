@@ -23,6 +23,9 @@ turnoya:
   booking:
     hold-ttl: 10m
     max-days-ahead: 60
+  outbox:
+    # Cuánto se guardan los eventos ya publicados antes de que OutboxCleanupJob los borre (todos los días a las 4).
+    retention: 7d
   mercadopago:
     access-token: ${MP_ACCESS_TOKEN:}
     webhook-secret: ${MP_WEBHOOK_SECRET:dev-secret}

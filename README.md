@@ -18,6 +18,8 @@ confirma cuando el cliente paga una seña. Mientras paga, el horario queda reten
 | El cliente paga después de que venció la seña | Si el horario sigue libre se confirma igual; si otro lo tomó, la reserva pasa a `REFUND_REQUIRED` | `BookingService#applyApprovedPayment` |
 | El job de vencimiento y el webhook modifican la misma reserva | `@Version` (lock optimista): gana el pago | `HoldExpirationJob` |
 | Publicar eventos sin perderlos ni inventarlos | Transactional outbox: el evento se guarda en la misma transacción y un relay lo publica en Kafka (topic por agregado, key = id de la reserva para conservar el orden, header `eventId` para deduplicar) | `outbox/` |
+| Varias instancias de la app publicarían los mismos eventos, o en desorden | Un solo relay activo: cada ciclo intenta tomar una fila-candado con `FOR UPDATE SKIP LOCKED`; si otra instancia la tiene, se saltea el ciclo en vez de esperar. Test con dos "instancias" simultáneas. | `OutboxRelay`, `OutboxRelayLockIT` |
+| El outbox crece sin límite | Job diario que borra los eventos publicados hace más de 7 días (configurable); los pendientes nunca se borran | `OutboxCleanupJob` |
 | Testear lógica que depende del tiempo | `Clock` inyectable: los tests "adelantan el reloj" | `MutableClock` |
 
 ## Ciclo de vida de una reserva
@@ -86,7 +88,7 @@ curl localhost:8080/api/bookings/{bookingId}
 ## Tests
 
 ```bash
-mvn verify   # 15 unitarios (surefire) + 11 de integración (failsafe), Kafka embebido sin Docker
+mvn verify   # 15 unitarios (surefire) + 13 de integración (failsafe), Kafka embebido sin Docker
 ```
 
 ## Roadmap
